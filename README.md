@@ -1,23 +1,24 @@
-# Prédiction de fin d’alerte orage — IA Pau Data Battle 2026
+🏆 Data Battle IA PAU 2026 – Projet …
 
-> **Prédire, minute par minute, quand un orage cesse de menacer un aéroport.**
+👥 Équipe
+Nom de l’équipe :
+Membres :
+Berthelot Sonny 
+Djolé Marc
+Vigneron Bastien
+Buteau Thibault
+Vanni Marco
 
-Ce projet est notre solution au challenge [Data Battle 2026](https://iapau.org) proposé par [Meteorage](https://www.meteorage.com). L’objectif est d’estimer en temps réel la probabilité qu’un orage soit encore dangereux autour d’un aéroport, afin de lever les alertes foudre **plus tôt** et **en toute sécurité**.
+## 🎯 Problématique
 
----
-
-## Le problème
-
+La problématique est d'arriver à rouvrir un aéroport le plus tôt possible lors d'une alerte d'orage tout en minimisant le risque qu'un éclair frappe l'aéroport.
 Les aéroports appliquent généralement une règle fixe : **lever l’alerte 30 minutes après le dernier impact** détecté dans un rayon de **20 km**.  
-Notre modèle prédit, à chaque minute, la probabilité que l’orage soit encore actif/dangereux, pour permettre une levée plus intelligente sans augmenter le risque.
 
 **Deux métriques officielles (jury) :**
 - **Gain G** — nombre total de minutes gagnées par rapport à la baseline humaine des 30 minutes.
 - **Risque R** — ratio d’impacts manqués dans la zone d’audit **3 km**. Doit rester sous **R < 2%**.
 
----
-
-## Notre approche
+## 💡 Solution proposée
 
 Nous formulons le problème comme une **classification binaire continue** : à chaque minute d’une alerte en cours, le modèle prédit si l’orage va produire un nouvel impact dangereux de type **CG** dans les **30 prochaines minutes**.
 
@@ -31,6 +32,16 @@ Nous formulons le problème comme une **classification binaire continue** : à c
 **Modèle :** classifieur XGBoost optimisé via Optuna, entraîné avec GroupKFold (5 folds, split au niveau des orages pour éviter les fuites).
 
 ---
+
+## ⚙️ Stack technique
+
+Langages : Python, Jupyter Notebook
+
+Frameworks : Aucun
+
+Outils : Optuna, XGBoost, pandas, NumPy, scikit-learn, joblib, Matplotlib, Seaborn, PyArrow
+
+IA (si utilisée) : XGBoost
 
 ## Structure du dépôt
 
@@ -64,13 +75,13 @@ data_battle/
 │   └── 02_training_and_evaluation.ipynb  # entraînement, tuning, évaluation, plots
 │
 ├── models/                  # modèles sauvegardés (.pkl) — non commités
-├── data/                    # données brutes et transformées — non commités
+├── data/                    # données brutes et transformées — non commitées
 ├── requirements.txt
 └── .gitignore
-```
 
----
-Access results per zone
+
+## 🚀 Installation & exécution
+
 ## Quick start
 
 ```bash
@@ -171,9 +182,3 @@ The alert trigger zone (20 km by default) is set by `ALERT_ZONE_KM` in `config/c
 - 230k éclaises CG (Cloud-Ground) et IC (Intra-Cloud) sur 5 ans, couvrant 10 aéroports français.
 - colonnes: `date`, `airport`, `lat`, `lon`, `dist`, `azimuth`, `amplitude`, `icloud`, `maxis`, `is_last_lightning_cloud_ground`.
 - L'alerte est déclenchée à la première éclaire CG détectée dans un rayon de 20 km autour de l’aéroport, et se termine 30 minutes après la dernière éclaire CG détectée dans ce rayon.
-
----
-
-## Team
-
-Data Battle, IABU Pau 2026 — Meteorage challenge.
