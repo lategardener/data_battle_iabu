@@ -91,9 +91,12 @@ data_battle/
 pip install -r requirements.txt
 
 
-# 2. Lancer les notebooks dans l’ordre
-jupyter notebook notebooks/01_data_processing.ipynb
-jupyter notebook notebooks/02_training_and_evaluation.ipynb
+# 2. Lancer uniquement le notebook complet
+notebooks/code_complete
+
+# 3. Ces notebooks (plus structurés) ne sont pas totalement opérationnels
+notebooks/01_data_processing.ipynb
+notebooks/02_training_and_evaluation.ipynb
 ```
 
 ---
