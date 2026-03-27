@@ -73,11 +73,15 @@ thunderstorm-alert-predictor/
 ## Quick start
 
 ```bash
-# 1. Install dependencies
+# 1. Setup virtual environment (create if doesn't exist)
+python3 -m venv venv
+source venv/bin/activate  # On Windows use: .\venv\Scripts\activate
+
+# 2. Install dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 
-
-# 2. Run the notebooks in order
+# 3. Run the notebooks in order
 jupyter notebook notebooks/01_data_processing.ipynb
 jupyter notebook notebooks/02_training_and_evaluation.ipynb
 ```
