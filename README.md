@@ -1,13 +1,15 @@
 🏆 Data Battle IA PAU 2026 – Projet …
 
-👥 Équipe
-Nom de l’équipe :
-Membres :
-Berthelot Sonny 
-Djolé Marc
-Vigneron Bastien
-Buteau Thibault
-Vanni Marco
+## 👥 Équipe
+
+**Nom de l’équipe :** IABU
+
+**Membres :**  
+- Berthelot Sonny  
+- Djolé Marc  
+- Vigneron Bastien  
+- Buteau Thibault  
+- Vanni Marco
 
 ## 🎯 Problématique
 
