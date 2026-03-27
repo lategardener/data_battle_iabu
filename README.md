@@ -1,108 +1,104 @@
-# Thunderstorm Alert End Prediction — IA Pau Data Battle 2026
+# Prédiction de fin d’alerte orage — IA Pau Data Battle 2026
 
-> **Predicting when a thunderstorm will stop threatening an airport — minute by minute.**
+> **Prédire, minute par minute, quand un orage cesse de menacer un aéroport.**
 
-This project is our solution to the [Data Battle 2026](https://iapau.org) challenge proposed by [Meteorage](https://www.meteorage.com). The goal is to estimate, in real time, the probability that a thunderstorm is still dangerous around an airport, allowing earlier and safer lifting of lightning alerts.
-
----
-
-## The problem
-
-Airports currently apply a fixed 30-minute clearance rule after the last lightning strike within 20 km. Our model predicts, at each minute, the probability that the storm is still active — enabling smarter, earlier clearance without increasing risk.
-
-**Two official metrics (jury):**
-- **Gain G** — total minutes saved vs. the 30-minute human baseline.
-- **Risk R** — ratio of lightning strikes missed inside the 3 km audit zone. Must stay below **R < 2%**.
+Ce projet est notre solution au challenge [Data Battle 2026](https://iapau.org) proposé par [Meteorage](https://www.meteorage.com). L’objectif est d’estimer en temps réel la probabilité qu’un orage soit encore dangereux autour d’un aéroport, afin de lever les alertes foudre **plus tôt** et **en toute sécurité**.
 
 ---
 
-## Our approach
+## Le problème
 
-We frame this as **continuous binary classification**: at every minute of an active alert, the model predicts whether the storm will produce another dangerous CG strike within the next 30 minutes.
+Les aéroports appliquent généralement une règle fixe : **lever l’alerte 30 minutes après le dernier impact** détecté dans un rayon de **20 km**.  
+Notre modèle prédit, à chaque minute, la probabilité que l’orage soit encore actif/dangereux, pour permettre une levée plus intelligente sans augmenter le risque.
 
-**Key design choices:**
-- Minute-by-minute temporal grid with multi-scale rolling features (5 min, 20 min).
-- Geometric storm tracking: centroid velocity, projected distance in 30 minutes.
-- IC/CG ratio and polarity trends as physical dissipation signals.
-- Irrevocable opening rule: once the AI decides to open, it cannot close again.
-- Evaluated across multiple safety zones: **3, 5, 7, 10, 15, 20 km**.
-
-**Model:** XGBoost classifier tuned with Optuna, trained with GroupKFold (5 folds, storm-level split to prevent leakage).
+**Deux métriques officielles (jury) :**
+- **Gain G** — nombre total de minutes gagnées par rapport à la baseline humaine des 30 minutes.
+- **Risque R** — ratio d’impacts manqués dans la zone d’audit **3 km**. Doit rester sous **R < 2%**.
 
 ---
 
-## Repository structure
+## Notre approche
 
-```
-thunderstorm-alert-predictor/
+Nous formulons le problème comme une **classification binaire continue** : à chaque minute d’une alerte en cours, le modèle prédit si l’orage va produire un nouvel impact dangereux de type **CG** dans les **30 prochaines minutes**.
+
+**Choix clés :**
+- Grille temporelle à la minute avec features glissantes multi-échelles (5 min, 20 min).
+- Suivi géométrique de l’orage : vitesse du centroïde, distance projetée à 30 minutes.
+- Ratio IC/CG et tendances de polarité comme signaux de dissipation.
+- Règle d’ouverture irrévocable : une fois que l’IA “ouvre” (lève l’alerte), elle ne peut plus la refermer.
+- Évaluation sur plusieurs zones de sécurité : **3, 5, 7, 10, 15, 20 km**.
+
+**Modèle :** classifieur XGBoost optimisé via Optuna, entraîné avec GroupKFold (5 folds, split au niveau des orages pour éviter les fuites).
+
+---
+
+## Structure du dépôt
+
+```text
+data_battle/
 │
 ├── config/
-│   └── config.py            # All parameters: zones, XGB hyperparams, feature list
+│   └── config.py            # paramètres : zones, hyperparamètres XGB, liste des features
 │
 ├── src/
 │   ├── preprocessing/
-│   │   ├── storm_groups.py  # Storm group assignment and target computation
-│   │   ├── cleaning.py      # Anomaly removal, noise filtering, formatters
-│   │   └── features.py      # Feature engineering on raw lightning strikes
+│   │   ├── storm_groups.py  # regroupement des impacts en orages + calcul de cibles
+│   │   ├── cleaning.py      # nettoyage : anomalies, bruit, formatage
+│   │   └── features.py      # feature engineering sur impacts bruts
 │   │
 │   ├── temporal_grid/
-│   │   └── grid_builder.py  # 1-minute resolution grid with rolling features
+│   │   └── grid_builder.py  # grille à 1 minute + features glissantes
 │   │
 │   ├── training/
-│   │   ├── model.py         # Cross-validation training and final fit
-│   │   └── tuning.py        # Optuna objectives (zero-crash and <3km rules)
+│   │   ├── model.py         # entraînement CV et entraînement final
+│   │   └── tuning.py        # objectifs Optuna
 │   │
 │   ├── evaluation/
-│   │   └── metrics.py       # Risk R, Gain G, threshold scanner, reports
+│   │   └── metrics.py       # risque R, gain G, scan de seuils, rapports
 │   │
 │   └── pipeline/
-│       └── predict.py       # Inference: real-time (single storm) and batch
+│       └── predict.py       # inférence : temps réel (un orage) et batch
 │
 ├── notebooks/
-│   ├── 01_data_processing.ipynb     # Raw data → processed temporal grid
-│   └── 02_training_and_evaluation.ipynb  # Training, tuning, evaluation, plots
+│   ├── 01_data_processing.ipynb          # données brutes → grille temporelle
+│   └── 02_training_and_evaluation.ipynb  # entraînement, tuning, évaluation, plots
 │
-├── models/                  # Saved model files (.pkl) — not committed to git
-├── data/                    # Raw and processed data — not committed to git
+├── models/                  # modèles sauvegardés (.pkl) — non commités
+├── data/                    # données brutes et transformées — non commités
 ├── requirements.txt
 └── .gitignore
 ```
 
 ---
-
+Access results per zone
 ## Quick start
 
 ```bash
-# 1. Setup virtual environment (create if doesn't exist)
-python3 -m venv venv
-source venv/bin/activate  # On Windows use: .\venv\Scripts\activate
-
-# 2. Install dependencies
-pip install --upgrade pip
+# 1. Installer les dépendances
 pip install -r requirements.txt
 
-# 3. Run the notebooks in order
+
+# 2. Lancer les notebooks dans l’ordre
 jupyter notebook notebooks/01_data_processing.ipynb
 jupyter notebook notebooks/02_training_and_evaluation.ipynb
 ```
 
 ---
 
-## Using the prediction pipeline
+## Utilisation de le pipeline
 
-### Training
+### Entraînement du modèle final
 
 ```python
 from src.pipeline.predict import predict_batch, save_model
 from src.training.model import train_final_model
 from config.config import FEATURE_COLUMNS
 
-# df_raw must be fully preprocessed (see notebook 01)
 model = train_final_model(X_all, y_all)
 save_model(model, 'models/xgb_final.pkl')
 ```
 
-### Batch inference (test mode — multiple storms)
+### Batch inference (évaluation sur un jeu de test)
 
 ```python
 from src.pipeline.predict import load_model, predict_batch
@@ -111,35 +107,35 @@ model = load_model('models/xgb_final.pkl')
 
 results = predict_batch(
     model,
-    df_test_raw,                    # raw lightning DataFrame
-    safety_zones_km=[3, 5, 10],    # zones to evaluate
+    df_test,                       # données de test prétraitées en grille temporelle
+    safety_zones_km=[3, 5, 10],    # zones d’audit à évaluer
     risk_threshold=0.02,
-    find_threshold=True,            # scan for best threshold
+    find_threshold=True,           # optimise le seuil de décision pour R < 2% sur la zone d’audit 3 km
 )
 
-# Access results per zone
-print(results[3]['total_gain'])     # total minutes gained at 3 km audit
-print(results[3]['risk'])           # risk R at 3 km
-print(results[3]['stats'])          # mean, median, std, max, min per storm
+# Affichage des résultats pour la zone d’audit 3 km
+print(results[3]['total_gain'])     # total minutes gagnées sur la zone d’audit 3 km
+print(results[3]['risk'])           # risque R à 3 km
+print(results[3]['stats'])          # détails des statistiques
 ```
 
-### Real-time inference (single storm in progress)
+### Vraie inférence temps réel (un seul orage, minute par minute)
 
 ```python
 from src.pipeline.predict import load_model, predict_realtime
 
 model = load_model('models/xgb_final.pkl')
 
-# df_storm: raw lightning history for the current storm (single airport)
+#  df_storm: historique brut des éclairs pour l’orage actuel (aéroport unique)
 proba = predict_realtime(model, df_storm)
-print(f"Current danger probability: {proba:.4f}")
+print(f"Probabilité de vrai danger: {proba:.4f}")
 ```
 
 ---
 
-## Best model hyperparameters
+## Modèle et hyperparamètres (cas de la zone d’audit 3 km)
 
-Found by Optuna (objective: maximise gain with zero fatal events < 3 km):
+Obtenu avec optuna optimisant le gain G sous la contrainte R < 2% sur la zone d’audit 3 km.:
 
 ```python
 XGB_DEFAULT_PARAMS = {
@@ -154,16 +150,15 @@ XGB_DEFAULT_PARAMS = {
 }
 ```
 
-All parameters are in `config/config.py` and used as defaults throughout the pipeline.
+Toutes les features utilisées sont listées dans `config/config.py`
 
 ---
 
-## Changing the safety zone threshold
+## Changez la zone d’audit
 
-The audit zone can be adjusted independently from the alert zone. Pass the desired list to `predict_batch` or `find_best_threshold`:
-
+La zone de sécurité par défaut est de 20 km, mais vous pouvez évaluer le modèle sur plusieurs zones d’audit en même temps (3, 5, 7, 10, 15, 20 km) pour analyser le compromis gain/risque à différentes distances.
 ```python
-# Evaluate at multiple radii simultaneously
+# Evaluation de plusieurs zones d’audit : 3, 5, 7, 10, 15, 20 km
 results = predict_batch(model, df_raw, safety_zones_km=[3, 5, 7, 10, 15, 20])
 ```
 
@@ -173,12 +168,12 @@ The alert trigger zone (20 km by default) is set by `ALERT_ZONE_KM` in `config/c
 
 ## Data
 
-- **230K lightning strikes** over 10 years around 6 European airports.
-- Columns: `date`, `airport`, `lat`, `lon`, `dist`, `azimuth`, `amplitude`, `icloud`, `maxis`, `is_last_lightning_cloud_ground`.
-- Alert definition: triggered when a CG strike occurs within 20 km. Ends after 30 minutes without any CG strike in the zone.
+- 230k éclaises CG (Cloud-Ground) et IC (Intra-Cloud) sur 5 ans, couvrant 10 aéroports français.
+- colonnes: `date`, `airport`, `lat`, `lon`, `dist`, `azimuth`, `amplitude`, `icloud`, `maxis`, `is_last_lightning_cloud_ground`.
+- L'alerte est déclenchée à la première éclaire CG détectée dans un rayon de 20 km autour de l’aéroport, et se termine 30 minutes après la dernière éclaire CG détectée dans ce rayon.
 
 ---
 
 ## Team
 
-Data Battle IA Pau 2026 — Meteorage challenge.
+Data Battle, IABU Pau 2026 — Meteorage challenge.
