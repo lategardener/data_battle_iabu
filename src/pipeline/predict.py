@@ -13,12 +13,12 @@ import pandas as pd
 import xgboost as xgb
 
 from config.config import (
-    ALERT_ZONE_KM,
     FEATURE_COLUMNS,
     RISK_THRESHOLD,
     SAFETY_ZONES_KM,
     SMOOTHING_WINDOW,
     CONFIRMATION_WINDOW,
+    HORIZON_MIN,
 )
 from src.evaluation.metrics import (
     apply_irrevocable_decision,
@@ -44,15 +44,22 @@ def save_model(model: xgb.XGBClassifier, model_path: str) -> None:
 
 def _prepare_grid(
     df_raw: pd.DataFrame,
-    alert_zone_km: int = ALERT_ZONE_KM,
-    audit_zone_km: int = 3,
+    safety_zones_km: list[int] = SAFETY_ZONES_KM,
 ) -> pd.DataFrame:
-    """Construit une grille à résolution minute à partir des données brutes de foudre."""
+    """
+    Construit une grille à résolution minute à partir des données brutes de foudre.
+    Bypass automatique si les données sont déjà formatées en grille.
+    """
+    # Bypass : si count_cg_20km est présent, c'est que la grille est déjà faite
+    if "count_cg_20km" in df_raw.columns:
+        print("Grille temporelle détectée. Passage direct à l'inférence...")
+        return df_raw.copy()
+
+    print("Données brutes détectées. Construction de la grille temporelle...")
     return build_temporal_grid(
         df_raw,
-        horizon_min=30,
-        alert_zone_km=float(alert_zone_km),
-        audit_zone_km=float(audit_zone_km),
+        horizon_min=HORIZON_MIN,
+        safety_zones_km=safety_zones_km,
     )
 
 
@@ -64,7 +71,13 @@ def _predict_proba(
 ) -> pd.DataFrame:
     """Ajoute les colonnes de probabilités brute et lissée à la grille."""
     cols = [c for c in feature_cols if c in df_grid.columns]
+
+    if len(cols) == 0:
+        raise ValueError("Aucune feature trouvée dans le DataFrame pour faire la prédiction.")
+
     df_grid["proba_brute"] = model.predict_proba(df_grid[cols])[:, 1]
+
+    # Lissage par orage
     df_grid["proba_lissee"] = df_grid.groupby("storm_group_id")["proba_brute"].transform(
         lambda x: x.rolling(window=smoothing_window, min_periods=1).mean()
     )
@@ -75,24 +88,12 @@ def predict_realtime(
     model: xgb.XGBClassifier,
     df_current_storm: pd.DataFrame,
     feature_cols: list[str] = FEATURE_COLUMNS,
-    alert_zone_km: int = ALERT_ZONE_KM,
+    safety_zones_km: list[int] = SAFETY_ZONES_KM,
 ) -> float:
     """
     Inférence en temps réel pour un seul orage en cours.
-
-    Construit la grille temporelle minute à partir de l’historique fourni
-    et retourne la probabilité lissée de danger pour la minute la plus récente.
-
-    Args:
-        model: XGBClassifier entraîné.
-        df_current_storm: Données brutes de foudre pour l’orage courant (un seul orage).
-        feature_cols: Features utilisées pour la prédiction.
-        alert_zone_km: Rayon de la zone d’alerte.
-
-    Returns:
-        Probabilité lissée que l’orage soit encore dangereux (entre 0 et 1).
     """
-    df_grid = _prepare_grid(df_current_storm, alert_zone_km=alert_zone_km)
+    df_grid = _prepare_grid(df_current_storm, safety_zones_km=safety_zones_km)
     df_grid = _predict_proba(model, df_grid, feature_cols)
 
     latest_proba = df_grid["proba_lissee"].iloc[-1]
@@ -102,74 +103,66 @@ def predict_realtime(
 
 def predict_batch(
     model: xgb.XGBClassifier,
-    df_raw: pd.DataFrame,
+    df_data: pd.DataFrame,
     safety_zones_km: list[int] = SAFETY_ZONES_KM,
     feature_cols: list[str] = FEATURE_COLUMNS,
-    alert_zone_km: int = ALERT_ZONE_KM,
     risk_threshold: float = RISK_THRESHOLD,
     find_threshold: bool = True,
     threshold_override: float | None = None,
 ) -> dict:
     """
     Inférence batch pour plusieurs orages.
-
-    Calcule les métriques de gain et de risque pour chaque zone de sécurité demandée.
-    Peut soit chercher le seuil optimal, soit utiliser un seuil fixe.
-
-    Args:
-        model: XGBClassifier entraîné.
-        df_raw: Données brutes contenant plusieurs orages.
-        safety_zones_km: Liste des rayons d’audit (km) à évaluer.
-        feature_cols: Features utilisées pour la prédiction.
-        alert_zone_km: Rayon de la zone d’alerte utilisé au preprocessing.
-        risk_threshold: Risque maximal acceptable (R_accept).
-        find_threshold: Si True, recherche le meilleur seuil par zone.
-        threshold_override: Seuil fixe utilisé pour toutes les zones (ignore la recherche).
-
-    Returns:
-        results: Dict[zone_km -> Dict] avec :
-            - threshold: float
-            - total_gain: int (minutes)
-            - risk: float
-            - stats: dict (mean, median, std, max, min par orage)
-            - gains_per_storm: pd.Series
+    Supporte l'évaluation multi-zones avec audit dynamique.
     """
-    df_grid = _prepare_grid(df_raw, alert_zone_km=alert_zone_km)
+    # 1. Grille et Prédictions
+    df_grid = _prepare_grid(df_data, safety_zones_km=safety_zones_km)
     df_grid = _predict_proba(model, df_grid, feature_cols)
 
     results: dict = {}
 
     if threshold_override is not None:
-        # Seuil fixe appliqué à toutes les zones
+        # 2a. Évaluation avec un seuil forcé
+        print(f"Application du seuil forcé : {threshold_override:.4f}")
         for zone_km in safety_zones_km:
+            audit_col = f"count_cg_{zone_km}km"
+
             decision = apply_irrevocable_decision(
                 df_grid,
                 threshold=threshold_override,
+                proba_col="proba_lissee",
+                alert_zone_col="count_cg_20km",
                 confirmation_window=CONFIRMATION_WINDOW,
             )
-            gains = compute_gain(df_grid, decision)
-            risk = compute_risk(df_grid, decision)
+
+            gains = compute_gain(df_grid, decision, alert_zone_col="count_cg_20km")
+            risk = compute_risk(df_grid, decision, audit_col=audit_col)
+
             results[zone_km] = _build_zone_result(
                 threshold_override, gains, risk, zone_km
             )
 
     elif find_threshold:
-        # Recherche du meilleur seuil par zone
+        # 2b. Recherche automatique du meilleur seuil
         results = find_best_threshold(
             df_grid,
             safety_zones_km=safety_zones_km,
+            proba_col="proba_lissee",
             risk_threshold=risk_threshold,
             confirmation_window=CONFIRMATION_WINDOW,
+            horizon_min=HORIZON_MIN,
         )
-        # Ajout des gains par orage pour chaque zone
+
+        # Ajout détaillé des gains par orage pour l'analyse
         for zone_km, res in results.items():
-            if res["total_gain"] >= 0:
+            if res.get("total_gain", -1) >= 0:
                 decision = apply_irrevocable_decision(
                     df_grid,
                     threshold=res["threshold"],
+                    proba_col="proba_lissee",
+                    alert_zone_col="count_cg_20km",
                     confirmation_window=CONFIRMATION_WINDOW,
                 )
-                res["gains_per_storm"] = compute_gain(df_grid, decision)
+                res["gains_per_storm"] = compute_gain(df_grid, decision, alert_zone_col="count_cg_20km")
 
     _print_batch_summary(results, safety_zones_km)
     return results
