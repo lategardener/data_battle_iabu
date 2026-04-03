@@ -48,39 +48,129 @@ IA (si utilisée) : XGBoost
 ## Structure du dépôt
 
 ```text
-data_battle/
+`data_battle/
 │
 ├── config/
-│   └── config.py            # paramètres : zones, hyperparamètres XGB, liste des features
+│   ├── config.py
+│   │   # Fichier central de configuration :
+│   │   # - paramètres globaux (zones, seeds, chemins)
+│   │   # - hyperparamètres du modèle (XGBoost)
+│   │   # - liste des features utilisées
+│   └── __init__.py
+│       # Permet de traiter config comme un module Python
+│
+├── data/
+│   ├── grid_train.parquet
+│   ├── grid_test.parquet
+│   │   # Données transformées en grille temporelle (résolution minute)
+│   │
+│   ├── segment_alerts_all_airports_train.csv
+│   └── segment_alerts_all_airports_test.csv
+│       # Données brutes initiales (segments d’alertes météo)
+│
+├── models/
+│   └── xgb_final.pkl
+│       # Modèle final entraîné (XGBoost sérialisé)
+│
+├── notebooks/
+│   ├── 01_data_processing.ipynb
+│   │   # Pipeline de preprocessing :
+│   │   # - nettoyage des données
+│   │   # - création des features
+│   │   # - construction de la grille temporelle
+│   │
+│   ├── 02_training_and_evaluation.ipynb
+│   │   # Entraînement et évaluation :
+│   │   # - cross-validation
+│   │   # - tuning (Optuna)
+│   │   # - métriques métier (risque, gain)
+│   │
+│   └── code_complete.ipynb
+│       # Notebook consolidé :
+│       # exécution complète du pipeline de bout en bout
+│
+├── presentation/
+│   ├── data_battle_IABU.pdf
+│   │   # Présentation finale du projet (résultats, méthodologie)
+│   └── __init__.py
+│       # (optionnel) permet import si besoin
 │
 ├── src/
 │   ├── preprocessing/
-│   │   ├── storm_groups.py  # regroupement des impacts en orages + calcul de cibles
-│   │   ├── cleaning.py      # nettoyage : anomalies, bruit, formatage
-│   │   └── features.py      # feature engineering sur impacts bruts
+│   │   ├── cleaning.py
+│   │   │   # Nettoyage des données :
+│   │   │   # - gestion des valeurs aberrantes
+│   │   │   # - normalisation / formatage
+│   │   │
+│   │   ├── features.py
+│   │   │   # Feature engineering :
+│   │   │   # - extraction de variables explicatives
+│   │   │   # - transformations métier
+│   │   │
+│   │   ├── storm_groups.py
+│   │   │   # Regroupement des impacts en événements (orages)
+│   │   │   # + génération des variables cibles
+│   │   │
+│   │   └── __init__.py
 │   │
 │   ├── temporal_grid/
-│   │   └── grid_builder.py  # grille à 1 minute + features glissantes
+│   │   ├── grid_builder.py
+│   │   │   # Construction d’une grille temporelle (pas = 1 minute)
+│   │   │   # + calcul de features glissantes (rolling window)
+│   │   │
+│   │   └── __init__.py
 │   │
 │   ├── training/
-│   │   ├── model.py         # entraînement CV et entraînement final
-│   │   └── tuning.py        # objectifs Optuna
+│   │   ├── model.py
+│   │   │   # Entraînement du modèle :
+│   │   │   # - cross-validation
+│   │   │   # - entraînement final
+│   │   │
+│   │   ├── tuning.py
+│   │   │   # Optimisation des hyperparamètres (Optuna)
+│   │   │
+│   │   └── __init__.py
 │   │
 │   ├── evaluation/
-│   │   └── metrics.py       # risque R, gain G, scan de seuils, rapports
+│   │   ├── metrics.py
+│   │   │   # Calcul des métriques :
+│   │   │   # - risque (R)
+│   │   │   # - gain (G)
+│   │   │   # - scan de seuils
+│   │   │
+│   │   ├── report.py
+│   │   │   # Génération de rapports :
+│   │   │   # - synthèse des performances
+│   │   │   # - visualisations / exports
+│   │   │
+│   │   └── __init__.py
 │   │
-│   └── pipeline/
-│       └── predict.py       # inférence : temps réel (un orage) et batch
+│   ├── pipeline/
+│   │   ├── predict.py
+│   │   │   # Pipeline d’inférence :
+│   │   │   # - prédiction en temps réel (par événement)
+│   │   │   # - prédiction batch
+│   │   │
+│   │   └── __init__.py
+│   │
+│   └── __init__.py
+│       # Rend le dossier src importable comme package
 │
-├── notebooks/
-│   ├── 01_data_processing.ipynb          # données brutes → grille temporelle
-│   └── 02_training_and_evaluation.ipynb  # entraînement, tuning, évaluation, plots
+├── README.md
+│   # Documentation principale du projet :
+│   # - description
+│   # - installation
+│   # - usage
 │
-├── models/                  # modèles sauvegardés (.pkl) — non commités
-├── data/                    # données brutes et transformées — non commitées
 ├── requirements.txt
+│   # Dépendances Python nécessaires
+│
 └── .gitignore
-
+    # Fichiers ignorés par Git :
+    # - environnements virtuels
+    # - fichiers lourds (data, modèles)
+    # - fichiers IDE (.idea, etc.)
+`
 
 ## 🚀 Installation & exécution
 
@@ -98,89 +188,62 @@ notebooks/02_training_and_evaluation.ipynb
 
 ---
 
-## Utilisation de le pipeline
+## ⚙️ Utilisation du pipeline
 
-### Entraînement du modèle final
+### 1. Chargement des données
 
 ```python
-from src.pipeline.predict import predict_batch, save_model
-from src.training.model import train_final_model
-from config.config import FEATURE_COLUMNS
+df_train = pd.read_parquet('data/grid_train.parquet')
+df_test  = pd.read_parquet('data/grid_test.parquet')
+```
 
+---
+
+### 2. Entraînement (GroupKFold)
+
+```python
+oof_preds, fold_models = train_with_cross_validation(
+    X_all, y_all, groups_all
+)
+```
+
+---
+
+### 3. Recherche de seuil
+
+```python
+results = find_best_threshold(
+    df_train,
+    risk_threshold=0.02
+)
+```
+
+---
+
+### 4. Entraînement final
+
+```python
 model = train_final_model(X_all, y_all)
 save_model(model, 'models/xgb_final.pkl')
 ```
 
-### Batch inference (évaluation sur un jeu de test)
+---
+
+### 5. Évaluation
 
 ```python
-from src.pipeline.predict import load_model, predict_batch
-
-model = load_model('models/xgb_final.pkl')
-
-results = predict_batch(
-    model,
-    df_test,                       # données de test prétraitées en grille temporelle
-    safety_zones_km=[3, 5, 10],    # zones d’audit à évaluer
-    risk_threshold=0.02,
-    find_threshold=True,           # optimise le seuil de décision pour R < 2% sur la zone d’audit 3 km
-)
-
-# Affichage des résultats pour la zone d’audit 3 km
-print(results[3]['total_gain'])     # total minutes gagnées sur la zone d’audit 3 km
-print(results[3]['risk'])           # risque R à 3 km
-print(results[3]['stats'])          # détails des statistiques
+results = predict_batch(model, df_test)
 ```
 
-### Vraie inférence temps réel (un seul orage, minute par minute)
+---
+
+### 6. Inférence temps réel
 
 ```python
-from src.pipeline.predict import load_model, predict_realtime
-
-model = load_model('models/xgb_final.pkl')
-
-#  df_storm: historique brut des éclairs pour l’orage actuel (aéroport unique)
 proba = predict_realtime(model, df_storm)
-print(f"Probabilité de vrai danger: {proba:.4f}")
 ```
-
----
-
-## Modèle et hyperparamètres (cas de la zone d’audit 3 km)
-
-Obtenu avec optuna optimisant le gain G sous la contrainte R < 2% sur la zone d’audit 3 km.:
-
-```python
-XGB_DEFAULT_PARAMS = {
-    "n_estimators": 506,
-    "max_depth": 5,
-    "learning_rate": 0.10423180025726148,
-    "min_child_weight": 10,
-    "subsample": 0.8738358835624531,
-    "colsample_bytree": 0.8723751225535342,
-    "gamma": 1.7503741438290679,
-    "scale_pos_weight": 3.964987197971567,
-}
-```
-
-Toutes les features utilisées sont listées dans `config/config.py`
-
----
-
-## Changez la zone d’audit
-
-La zone de sécurité par défaut est de 20 km, mais vous pouvez évaluer le modèle sur plusieurs zones d’audit en même temps (3, 5, 7, 10, 15, 20 km) pour analyser le compromis gain/risque à différentes distances.
-```python
-# Evaluation de plusieurs zones d’audit : 3, 5, 7, 10, 15, 20 km
-results = predict_batch(model, df_raw, safety_zones_km=[3, 5, 7, 10, 15, 20])
-```
-
-The alert trigger zone (20 km by default) is set by `ALERT_ZONE_KM` in `config/config.py`.
-
----
-
 ## Data
 
-- 230k éclaises CG (Cloud-Ground) et IC (Intra-Cloud) sur 5 ans, couvrant 10 aéroports français.
+- 230k éclairs CG (Cloud-Ground) et IC (Intra-Cloud) sur 5 ans, couvrant 10 aéroports français.
 - colonnes: `date`, `airport`, `lat`, `lon`, `dist`, `azimuth`, `amplitude`, `icloud`, `maxis`, `is_last_lightning_cloud_ground`.
-- L'alerte est déclenchée à la première éclaire CG détectée dans un rayon de 20 km autour de l’aéroport, et se termine 30 minutes après la dernière éclaire CG détectée dans ce rayon.
+- L'alerte est déclenchée à la première éclaire CG détectée dans un rayon de 20 km autour de l’aéroport, et se termine 30 minutes après le dernier éclair CG détecté dans ce rayon.
