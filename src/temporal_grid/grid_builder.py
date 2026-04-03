@@ -10,8 +10,10 @@ import pandas as pd
 def build_temporal_grid(
         df_raw: pd.DataFrame,
         horizon_min: int = 30,
-        safety_zones_km: list[int] = [3, 5, 7, 10, 15, 20],
+        safety_zones_km=None,
 ) -> pd.DataFrame:
+    if safety_zones_km is None:
+        safety_zones_km = [20]
     print(f"Construction de la grille temporelle (horizon={horizon_min}m, zones={safety_zones_km}km)...")
 
     df = df_raw.copy()

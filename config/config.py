@@ -58,12 +58,11 @@ CONFIRMATION_WINDOW: int = 10  # Minutes nécessaires pour confirmer une décisi
 # ──────────────────────────────────────────────
 
 AIRPORT_MAPPING: dict[str, int] = {
-    "Bron": 0,
     "Bastia": 1,
-    "Ajaccio": 2,
-    "Nantes": 3,
-    "Pise": 4,
-    "Biarritz": 5,
+    "Ajaccio": 1,
+    "Nantes": 2,
+    "Pise": 3,
+    "Biarritz": 4,
 }
 
 # ──────────────────────────────────────────────
